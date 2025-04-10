@@ -6,7 +6,7 @@
 WebServer server(80);
 int num_networks;
 
-// Move the function declaration to the top
+
 String getEncryptionType(wifi_auth_mode_t encryptionType);
 
 void redirect_root() {
@@ -524,7 +524,7 @@ void web_interface_handle_client() {
   server.handleClient();
 }
 
-// The function implementation can stay where it is
+
 String getEncryptionType(wifi_auth_mode_t encryptionType) {
   switch (encryptionType) {
     case WIFI_AUTH_OPEN:
