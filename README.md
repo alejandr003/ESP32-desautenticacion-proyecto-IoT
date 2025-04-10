@@ -1,30 +1,29 @@
-# ESP32-Deauther
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/tesa-klebeband/ESP32-Deauther)
-![GitHub License](https://img.shields.io/github/license/tesa-klebeband/ESP32-Deauther)
-![GitHub Repo stars](https://img.shields.io/github/stars/tesa-klebeband/ESP32-Deauther?style=flat)
-![GitHub forks](https://img.shields.io/github/forks/tesa-klebeband/ESP32-Deauther?style=flat)
+# ESP32-Killer
+
 ![logo](https://github.com/user-attachments/assets/4e2ac65f-1b25-4a97-822a-6a91ca71b5be)
 
-A project for the ESP32 that allows you to deauthenticate stations connected to WiFi network
-# DISCLAIMER
-This tool has been made for educational and testing purposes only. Any misuse or illegal activities conducted with the tool are strictly prohibited. I am **not** responsible for any consequences arising from the use of the tool, which is done at your own risk.
-## Building
-Clone this repo using:
+Un proyecto para el ESP32 que permite desautenticar estaciones conectadas a una red WiFi.
 
-`git clone https://github.com/tesa-klebeband/ESP32-Deauther`
+# AVISO
+Esta herramienta es para pruebas y de tipo educativo. El uso de esta herramienta es bajo tu responsabilidad. **No** soy responsable de las consecuencias derivadas, es bajo tu propio riesgo.
 
-1) Install vscode and PlatformIO
-2) Install the PlatformIO extension in vscode
-3) Open the cloned folder in vscode and press the upload button
+## Construcción
+Clona este repositorio:
 
-## Installing directly from your Browser
-Open my [ESP32-Webflasher](https://tesa-klebeband.github.io/ESP32-Webflasher) in Chrome or Edge, select `ESP32-Deauther` and follow the listed instructions
+`git clone https://github.com/alejandr003/ESP32-desautenticacion-proyecto-IoT`
 
-## Using ESP32-Deauther
-The ESP32 hosts a WiFi network with the name of `ESP32-Deauther` and a password of `esp32wroom32`. Connect to this network and type the IP of your ESP32 (typically **192.168.4.1**) into a webbrowser of a choice. You will see the following options:
-* Rescan networks: Rescan and detect all WiFi networks in your area. After a successful scan, the networks are listed in the above table.
-* Launch Deauth-Attack: Deauthenticates all clients connected to a network. Enter the network number from the table at the top and a reason code from the table at the bottom of the page. After that click the button and your ESP32's LED will flash when it deauthenticates a station.
-* Deauth all networks: Launches a Deauth-Attack on all networks and stations with a specific reason. In order to stop this, you have to reset your ESP32 (no other way to code this since the ESP32 rapidly changes through all network channels and has to disable its AP)
-* Stop Deauth-Attack: Stops an ongoing deauthentication attack
-## License
-All files within this repo are released under the GNU GPL V3 License as per the LICENSE file stored in the root of this repo.
+1) Tener instalado VSC.
+2) Instala la extensión de PlatformIO en vscode.
+3) Abrir la carpeta del proyecto de dónde lo hayas guardado.
+4) Conecta la ESP32 a tu equipo.
+5) Verifica el COM donde se haya alojado y que tu computadora lo reconozca. NOTA: Asegurate de que tengas el ESP32 tenga los drivers necesarios para su uso.
+
+![Texto alternativo](https://ukmars.org/ukmars/wp-content/uploads/2020/08/platformio-logo.png)
+
+## Usando ESP32
+El ESP32 aloja una red WiFi con el nombre `RED-Oculta` y una contraseña `03esp32izzi`. Conéctate a esta red y escribe la siguinte IP: **192.168.4.1** en un navegador web de tu elección. Verás las siguientes opciones:
+* Reescanear redes: Escanea y detecta todas las redes WiFi en tu área. Después de un escaneo exitoso, las redes se listarán en la tabla superior.
+* Lanzar ataque de desautenticación: Desautentica a todos los clientes conectados a una red. Ingresa el número de red de la tabla superior y un código de razón de la tabla inferior de la página. Luego haz clic en el botón y el LED de tu ESP32 parpadeará mientras desautentica una estación.
+* Desautenticar todas las redes: Lanza un ataque de desautenticación en todas las redes y estaciones con un código de razón específico. Para detener esto, debes reiniciar tu ESP32 (no hay otra forma de programarlo ya que el ESP32 cambia rápidamente entre todos los canales de red y debe deshabilitar su AP).
+* Detener ataque de desautenticación: Detiene un ataque de desautenticación en curso.
+

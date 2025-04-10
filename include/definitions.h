@@ -1,7 +1,7 @@
 #ifndef DEFINITIONS_H
 #define DEFINITIONS_H
 
-#define AP_SSID "IZZI-Deauther"
+#define AP_SSID "RED-Oculta"
 #define AP_PASS "03esp32izzi"
 #define LED 2
 #define SERIAL_DEBUG
