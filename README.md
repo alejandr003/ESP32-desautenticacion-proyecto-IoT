@@ -21,7 +21,7 @@ Clona este repositorio:
 ![Texto alternativo](https://ukmars.org/ukmars/wp-content/uploads/2020/08/platformio-logo.png)
 
 ## Usando ESP32
-El ESP32 aloja una red WiFi con el nombre `RED-Oculta` y una contraseña `03esp32izzi`. Conéctate a esta red y escribe la siguinte IP: **192.168.4.1** en un navegador web de tu elección. Verás las siguientes opciones:
+El ESP32 aloja una red WiFi con el nombre `IZZI-7C43` y una contraseña `03esp32izzi`. Conéctate a esta red y escribe la siguinte IP: **192.168.4.1** en un navegador web de tu elección. Verás las siguientes opciones:
 * Reescanear redes: Escanea y detecta todas las redes WiFi en tu área. Después de un escaneo exitoso, las redes se listarán en la tabla superior.
 * Lanzar ataque de desautenticación: Desautentica a todos los clientes conectados a una red. Ingresa el número de red de la tabla superior y un código de razón de la tabla inferior de la página. Luego haz clic en el botón y el LED de tu ESP32 parpadeará mientras desautentica una estación.
 * Desautenticar todas las redes: Lanza un ataque de desautenticación en todas las redes y estaciones con un código de razón específico. Para detener esto, debes reiniciar tu ESP32 (no hay otra forma de programarlo ya que el ESP32 cambia rápidamente entre todos los canales de red y debe deshabilitar su AP).

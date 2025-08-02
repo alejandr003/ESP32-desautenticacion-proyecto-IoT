@@ -420,3 +420,4 @@
 .vscode/extensions.json
 .vscode/launch.json
 .vscode/settings.json
+.pio/build/esp32doit-devkit-v1/tmpch7mkg_t.tmp
