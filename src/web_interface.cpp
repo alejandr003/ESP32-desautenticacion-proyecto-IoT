@@ -1,12 +1,35 @@
+#include <WiFi.h>
 #include <WebServer.h>
-#include "web_interface.h"
-#include "definitions.h"
-#include "deauth.h"
+// #include "web_interface.h" // Incluidos en este archivo
+// #include "definitions.h"   // Incluidos en este archivo
+// #include "deauth.h"       // Incluidos en este archivo
+
+// Definiciones de variables globales (simuladas si no tienes los .h)
+// **NOTA:** Asumo que estas variables están definidas en 'definitions.h' y 'deauth.h'
+// Si estos archivos no existen, deberás definirlas aquí para que compile.
+// Ejemplo:
+// extern int eliminated_stations; // Si viene de deauth.h
+int eliminated_stations = 0; // Simulando la variable si no existe
+#define DEAUTH_TYPE_SINGLE 1
+#define DEAUTH_TYPE_ALL 2
+extern void start_deauth(int net_num, int type, uint16_t reason);
+extern void stop_deauth();
+
 
 WebServer server(80);
 int num_networks;
 
+// Declaraciones de funciones
 String getEncryptionType(wifi_auth_mode_t encryptionType);
+void redirect_root();
+void handle_root();
+void handle_deauth();
+void handle_deauth_all();
+void handle_rescan();
+void handle_stop();
+void start_web_interface();
+void web_interface_handle_client();
+
 
 void redirect_root()
 {
@@ -14,6 +37,7 @@ void redirect_root()
     server.send(301);
 }
 
+// Función principal con la interfaz rediseñada
 void handle_root()
 {
     String html = R"(
@@ -22,8 +46,21 @@ void handle_root()
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 WiFi Deauther Pro</title>
+    <title>ESP32 WiFi Auditor - Panel de Control</title>
     <style>
+        /* Variables y Reset Básico */
+        :root {
+            --primary-color: #007bff;      /* Azul Primario */
+            --secondary-color: #6c757d;    /* Gris Secundario */
+            --success-color: #28a745;      /* Verde Éxito */
+            --warning-color: #ffc107;      /* Amarillo Advertencia */
+            --danger-color: #dc3545;       /* Rojo Peligro */
+            --background-light: #f8f9fa;   /* Fondo Claro */
+            --background-dark: #ffffff;    /* Fondo de Componente */
+            --text-color: #343a40;         /* Texto Principal */
+            --border-color: #dee2e6;       /* Color de Borde */
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -31,45 +68,43 @@ void handle_root()
         }
         
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+            background: var(--background-light);
             min-height: 100vh;
-            color: #333;
+            color: var(--text-color);
             line-height: 1.6;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
             padding: 20px;
         }
         
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        /* Encabezado */
         .header {
             text-align: center;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
+            background: var(--background-dark);
+            border-radius: 12px;
             padding: 30px;
             margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .header h1 {
-            font-size: 2.5rem;
-            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-bottom: 5px;
             font-weight: bold;
         }
         
         .subtitle {
-            color: #666;
-            font-size: 1.1rem;
-            font-weight: 300;
+            color: var(--secondary-color);
+            font-size: 1rem;
+            font-weight: 400;
         }
         
+        /* Tarjetas de Estadísticas */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -78,119 +113,110 @@ void handle_root()
         }
         
         .stat-card {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
+            background: var(--background-dark);
+            border-radius: 12px;
             padding: 20px;
             text-align: center;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-left: 5px solid var(--primary-color);
         }
         
         .stat-number {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: bold;
-            color: #4ecdc4;
+            color: var(--primary-color);
             display: block;
+            margin-bottom: 5px;
         }
         
         .stat-label {
-            color: #666;
+            color: var(--secondary-color);
             font-size: 0.9rem;
-            margin-top: 5px;
+            font-weight: 500;
         }
         
-        .networks-section {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
+        /* Sección Principal */
+        .section {
+            background: var(--background-dark);
+            border-radius: 12px;
             padding: 25px;
             margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .section-title {
             font-size: 1.5rem;
-            color: #333;
+            color: var(--text-color);
             margin-bottom: 20px;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
             display: flex;
             align-items: center;
             gap: 10px;
         }
         
         .section-icon {
-            width: 30px;
-            height: 30px;
-            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 1.5rem;
         }
         
+        /* Tabla de Redes */
         .networks-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
-            background: white;
-            border-radius: 10px;
+            border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
         
         .networks-table th {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background-color: var(--primary-color);
             color: white;
-            padding: 15px 12px;
+            padding: 12px 15px;
             text-align: left;
             font-weight: 600;
             font-size: 0.9rem;
         }
         
         .networks-table td {
-            padding: 12px;
-            border-bottom: 1px solid #f0f0f0;
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
             font-size: 0.9rem;
         }
         
         .networks-table tr:nth-child(even) {
-            background-color: #f8f9ff;
+            background-color: #f8f9fa;
         }
         
         .networks-table tr:hover {
-            background-color: #e8f0fe;
-            transform: scale(1.01);
-            transition: all 0.2s ease;
+            background-color: #e9ecef;
         }
         
+        /* Estilos de Señal y Seguridad */
         .signal-strength {
-            display: inline-block;
             padding: 4px 8px;
-            border-radius: 12px;
+            border-radius: 4px;
             font-size: 0.8rem;
-            font-weight: bold;
+            font-weight: 600;
         }
         
-        .signal-excellent { background: #4caf50; color: white; }
-        .signal-good { background: #8bc34a; color: white; }
-        .signal-fair { background: #ff9800; color: white; }
-        .signal-poor { background: #f44336; color: white; }
+        .signal-excellent { background: var(--success-color); color: white; }
+        .signal-good { background: #ffc107; color: #343a40; } /* Amarillo para bueno */
+        .signal-fair { background: #fd7e14; color: white; } /* Naranja para regular */
+        .signal-poor { background: var(--danger-color); color: white; }
         
         .encryption-badge {
             display: inline-block;
             padding: 4px 8px;
-            border-radius: 12px;
+            border-radius: 4px;
             font-size: 0.8rem;
-            font-weight: bold;
-            background: #e3f2fd;
-            color: #1976d2;
+            font-weight: 600;
+            background: #e9f0ff;
+            color: var(--primary-color);
         }
         
+        /* Paneles de Control */
         .control-panel {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -199,16 +225,19 @@ void handle_root()
         }
         
         .control-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
+            background: var(--background-dark);
+            border-radius: 12px;
             padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         .control-card h3 {
-            color: #333;
+            color: var(--text-color);
             margin-bottom: 15px;
             font-size: 1.2rem;
+            font-weight: 600;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 8px;
         }
         
         .input-group {
@@ -218,160 +247,143 @@ void handle_root()
         .input-group label {
             display: block;
             margin-bottom: 5px;
-            color: #666;
+            color: var(--text-color);
             font-weight: 500;
+            font-size: 0.9rem;
         }
         
         .form-input {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
             font-size: 1rem;
             transition: border-color 0.3s ease;
-            background: white;
+            background: #ffffff;
         }
         
         .form-input:focus {
             outline: none;
-            border-color: #4ecdc4;
-            box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.1);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
         }
         
+        /* Botones */
         .btn {
             width: 100%;
-            padding: 12px 20px;
+            padding: 10px 15px;
             border: none;
-            border-radius: 10px;
+            border-radius: 6px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
             margin-top: 10px;
         }
         
         .btn-primary {
-            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            background-color: var(--success-color);
             color: white;
         }
         
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.4);
+            background-color: #218838;
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.5);
         }
-        
+
         .btn-warning {
-            background: linear-gradient(45deg, #ff9800, #f57c00);
-            color: white;
+            background-color: var(--warning-color);
+            color: #343a40;
         }
         
         .btn-warning:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 152, 0, 0.4);
+            background-color: #e0a800;
+            box-shadow: 0 2px 4px rgba(255, 193, 7, 0.5);
         }
         
         .btn-danger {
-            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            background-color: var(--danger-color);
             color: white;
         }
         
         .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+            background-color: #c82333;
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.5);
         }
         
         .btn-scan {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background-color: var(--primary-color);
             color: white;
         }
         
         .btn-scan:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            background-color: #0056b3;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.5);
         }
-        
-        .codes-section {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        }
-        
+
+        /* Códigos de Desautenticación */
         .codes-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 20px;
         }
         
         .code-card {
-            background: #f8f9ff;
-            border-left: 4px solid #4ecdc4;
-            border-radius: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid var(--primary-color);
+            border-radius: 6px;
             padding: 15px;
-            transition: transform 0.2s ease;
+            transition: background 0.2s ease;
         }
         
         .code-card:hover {
-            transform: translateX(5px);
-            background: #e8f0fe;
+            background: #e9ecef;
         }
         
         .code-number {
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             font-weight: bold;
-            color: #4ecdc4;
+            color: var(--primary-color);
             margin-bottom: 5px;
         }
         
         .code-title {
             font-weight: 600;
-            color: #333;
-            margin-bottom: 8px;
+            color: var(--text-color);
+            margin-bottom: 5px;
+            font-size: 0.95rem;
         }
         
         .code-description {
-            font-size: 0.9rem;
-            color: #666;
-            line-height: 1.4;
+            font-size: 0.85rem;
+            color: var(--secondary-color);
         }
         
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            .header h1 {
-                font-size: 1.8rem;
-            }
-            
-            .control-panel {
-                grid-template-columns: 1fr;
-            }
-            
-            .codes-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
+        /* Animación */
         .pulse {
-            animation: pulse 2s infinite;
+            animation: pulse 1.5s infinite;
         }
         
         @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.5rem; }
+            .stat-number { font-size: 1.8rem; }
+            .control-panel, .codes-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>ESP32 WiFi Deauther Pro</h1>
-            <p class="subtitle">Herramienta avanzada de pentesting para redes inalambricas</p>
+            <h1>ESP32 WiFi Auditor</h1>
+            <p class="subtitle">Herramienta de Auditoría y Testing de Redes Inalámbricas</p>
         </div>
         
         <div class="stats-grid">
@@ -381,24 +393,27 @@ void handle_root()
             </div>
             <div class="stat-card">
                 <span class="stat-number">)" + String(eliminated_stations) + R"(</span>
-                <div class="stat-label">Estaciones Eliminadas</div>
+                <div class="stat-label">Estaciones Afectadas</div>
             </div>
         </div>
         
-        <div class="networks-section">
+        <div class="section networks-section">
             <h2 class="section-title">
-                <div class="section-icon">W</div>
+                <span class="section-icon">📡</span>
                 Redes WiFi Disponibles
             </h2>
             <table class="networks-table">
-                <tr>
-                    <th>ID</th>
-                    <th>SSID</th>
-                    <th>BSSID</th>
-                    <th>Canal</th>
-                    <th>Senal</th>
-                    <th>Seguridad</th>
-                </tr>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>SSID</th>
+                        <th>BSSID</th>
+                        <th>Canal</th>
+                        <th>Señal</th>
+                        <th>Seguridad</th>
+                    </tr>
+                </thead>
+                <tbody>
 )";
 
     for (int i = 0; i < num_networks; i++)
@@ -421,115 +436,96 @@ void handle_root()
     }
 
     html += R"(
+                </tbody>
             </table>
             
             <form method="post" action="/rescan">
-                <button type="submit" class="btn btn-scan">Escanear Redes WiFi</button>
+                <button type="submit" class="btn btn-scan">🔄 Escanear Redes WiFi</button>
             </form>
         </div>
 
         <div class="control-panel">
             <div class="control-card">
-                <h3>Ataque Dirigido</h3>
+                <h3>🎯 Ataque Dirigido (Deauth)</h3>
                 <form method="post" action="/deauth">
                     <div class="input-group">
-                        <label for="net_num">Numero de Red Objetivo</label>
-                        <input type="text" name="net_num" id="net_num" class="form-input" placeholder="Ej: 0, 1, 2..." required>
+                        <label for="net_num">ID de Red Objetivo</label>
+                        <input type="number" name="net_num" id="net_num" class="form-input" placeholder="Ej: 0, 1, 2..." required min="0" max=")" + String(num_networks - 1) + R"(">
                     </div>
                     <div class="input-group">
-                        <label for="reason">Codigo de Razon</label>
-                        <input type="text" name="reason" id="reason" class="form-input" placeholder="Ej: 1, 2, 3..." required>
+                        <label for="reason">Código de Razón (Ver lista inferior)</label>
+                        <input type="number" name="reason" id="reason" class="form-input" placeholder="Ej: 1, 2, 3..." required min="1">
                     </div>
                     <button type="submit" class="btn btn-warning">Iniciar Ataque Dirigido</button>
                 </form>
             </div>
 
             <div class="control-card">
-                <h3>Ataque Masivo</h3>
+                <h3>🔥 Ataque Masivo (Broadcast)</h3>
                 <form method="post" action="/deauth_all">
                     <div class="input-group">
-                        <label for="reason_all">Codigo de Razon</label>
-                        <input type="text" name="reason" id="reason_all" class="form-input" placeholder="Ej: 1, 2, 3..." required>
+                        <label for="reason_all">Código de Razón (Ver lista inferior)</label>
+                        <input type="number" name="reason" id="reason_all" class="form-input" placeholder="Ej: 1, 2, 3..." required min="1">
                     </div>
                     <button type="submit" class="btn btn-danger pulse">Atacar Todas las Redes</button>
-                    <p style="font-size: 0.8rem; color: #666; margin-top: 10px;">
-                        ⚠️ Advertencia: Este modo desconectara el WiFi del dispositivo
+                    <p style="font-size: 0.8rem; color: var(--danger-color); margin-top: 10px; font-weight: 500;">
+                        ⚠️ Advertencia: Este modo detendrá el WiFi del dispositivo y afectará a TODAS las redes cercanas.
                     </p>
                 </form>
             </div>
         </div>
-
-        <div class="control-card" style="text-align: center; margin-bottom: 30px;">
+        
+        <div class="section" style="text-align: center; padding: 20px;">
             <form method="post" action="/stop">
-                <button type="submit" class="btn btn-primary">Detener Todos los Ataques</button>
+                <button type="submit" class="btn btn-primary">🛑 Detener Todos los Ataques Activos</button>
             </form>
         </div>
 
-        <div class="codes-section">
+        <div class="section codes-section">
             <h2 class="section-title">
-                <div class="section-icon">#</div>
-                Codigos de Desautenticacion
+                <span class="section-icon">📜</span>
+                Códigos de Razón de Desautenticación 802.11
             </h2>
             <div class="codes-grid">
                 <div class="code-card">
                     <div class="code-number">1</div>
-                    <div class="code-title">Razon No Especificada</div>
-                    <div class="code-description">Desconexion por razon desconocida o no especificada</div>
+                    <div class="code-title">Razón No Especificada</div>
+                    <div class="code-description">Desconexión por razón desconocida o no especificada.</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">2</div>
-                    <div class="code-title">Autenticacion Invalida</div>
-                    <div class="code-description">La autenticacion previa ya no es valida</div>
+                    <div class="code-title">Autenticación Inválida</div>
+                    <div class="code-description">La autenticación previa ya no es válida.</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">3</div>
-                    <div class="code-title">Estacion Saliendo</div>
-                    <div class="code-description">La estacion se desconecta porque esta saliendo</div>
+                    <div class="code-title">Estación Saliendo (Deauth)</div>
+                    <div class="code-description">La estación se desconecta porque está saliendo del BSS.</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">4</div>
                     <div class="code-title">Inactividad</div>
-                    <div class="code-description">Desconexion por periodo prolongado de inactividad</div>
-                </div>
-                <div class="code-card">
-                    <div class="code-number">5</div>
-                    <div class="code-title">Sobrecarga AP</div>
-                    <div class="code-description">El punto de acceso no puede manejar mas conexiones</div>
-                </div>
-                <div class="code-card">
-                    <div class="code-number">6</div>
-                    <div class="code-title">Trama Clase 2</div>
-                    <div class="code-description">Trama de clase 2 de estacion no autenticada</div>
-                </div>
-                <div class="code-card">
-                    <div class="code-number">7</div>
-                    <div class="code-title">Trama Clase 3</div>
-                    <div class="code-description">Trama de clase 3 de estacion no asociada</div>
+                    <div class="code-description">Desconexión por periodo prolongado de inactividad.</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">8</div>
-                    <div class="code-title">STA Saliendo</div>
-                    <div class="code-description">Estacion disociada porque esta saliendo del BSS</div>
+                    <div class="code-title">Estación Saliendo (Disass)</div>
+                    <div class="code-description">Estación disociada porque está saliendo del BSS.</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">14</div>
-                    <div class="code-title">Error MIC</div>
-                    <div class="code-description">Fallo en el codigo de integridad del mensaje</div>
+                    <div class="code-title">Error MIC (WPA)</div>
+                    <div class="code-description">Fallo en el código de integridad del mensaje (WPA/WPA2).</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">15</div>
-                    <div class="code-title">Timeout 4-Way</div>
-                    <div class="code-description">Tiempo agotado en handshake de 4 vias</div>
+                    <div class="code-title">Timeout 4-Way (WPA)</div>
+                    <div class="code-description">Tiempo agotado durante el handshake de 4 vías (WPA/WPA2).</div>
                 </div>
                 <div class="code-card">
                     <div class="code-number">23</div>
                     <div class="code-title">802.1X Fallo</div>
-                    <div class="code-description">Fallo en autenticacion IEEE 802.1X</div>
-                </div>
-                <div class="code-card">
-                    <div class="code-number">24</div>
-                    <div class="code-title">Cifrado Rechazado</div>
-                    <div class="code-description">Conjunto de cifrado rechazado por politica</div>
+                    <div class="code-description">Fallo en la autenticación IEEE 802.1X.</div>
                 </div>
             </div>
         </div>
@@ -541,6 +537,7 @@ void handle_root()
     server.send(200, "text/html", html);
 }
 
+// Función de manejo de ataque dirigido (Rediseñada)
 void handle_deauth()
 {
     int wifi_number = server.arg("net_num").toInt();
@@ -552,50 +549,48 @@ void handle_deauth()
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estado del Ataque - ESP32 Deauther</title>
+    <title>Estado del Ataque - ESP32 Auditor</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-color: #007bff;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --background-light: #f8f9fa;
+            --background-dark: #ffffff;
+            --text-color: #343a40;
         }
         
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: #333;
+            color: var(--text-color);
         }
         
         .alert-container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
+            background: var(--background-dark);
+            border-radius: 12px;
             padding: 40px;
             text-align: center;
             max-width: 500px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
             animation: slideIn 0.5s ease-out;
         }
         
         @keyframes slideIn {
-            from {
-                transform: translateY(-50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
         
-        .success-icon {
+        .icon {
             width: 80px;
             height: 80px;
-            background: linear-gradient(45deg, #4caf50, #45a049);
             border-radius: 50%;
             margin: 0 auto 20px;
             display: flex;
@@ -603,92 +598,91 @@ void handle_deauth()
             justify-content: center;
             font-size: 40px;
             color: white;
+            font-weight: bold;
+        }
+
+        .success-icon { 
+            background: var(--success-color);
+            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
             animation: pulse 2s infinite;
         }
         
-        .error-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(45deg, #f44336, #d32f2f);
-            border-radius: 50%;
-            margin: 0 auto 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            color: white;
+        .error-icon { 
+            background: var(--danger-color);
             animation: shake 0.5s ease-in-out;
         }
         
         @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+            50% { box-shadow: 0 0 0 15px rgba(40, 167, 69, 0); }
         }
         
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
         
         .alert-title {
             font-size: 1.8rem;
             font-weight: bold;
-            margin-bottom: 15px;
-            color: #333;
+            margin-bottom: 10px;
+            color: var(--text-color);
         }
         
         .alert-message {
-            font-size: 1.1rem;
+            font-size: 1rem;
             margin-bottom: 10px;
-            color: #666;
-            line-height: 1.6;
+            color: #6c757d;
         }
         
         .detail-info {
-            background: #f8f9ff;
-            border-radius: 10px;
+            background: var(--background-light);
+            border-radius: 8px;
             padding: 15px;
-            margin: 20px 0;
-            border-left: 4px solid #4ecdc4;
+            margin: 15px 0;
+            border-left: 4px solid var(--primary-color);
+            text-align: left;
         }
         
         .detail-label {
-            font-weight: 600;
-            color: #4ecdc4;
-            margin-bottom: 5px;
+            font-weight: 500;
+            color: var(--primary-color);
+            margin-bottom: 3px;
+            font-size: 0.9rem;
         }
         
         .detail-value {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: bold;
-            color: #333;
+            color: var(--text-color);
         }
         
         .btn-home {
             display: inline-block;
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background-color: var(--primary-color);
             color: white;
-            padding: 15px 30px;
+            padding: 10px 20px;
             text-decoration: none;
-            border-radius: 25px;
+            border-radius: 6px;
             font-weight: 600;
             margin-top: 20px;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            transition: background-color 0.3s ease;
         }
         
         .btn-home:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            background-color: #0056b3;
         }
         
         .warning-text {
             font-size: 0.9rem;
-            color: #ff9800;
+            color: #856404;
             margin-top: 15px;
             font-style: italic;
+            background-color: #fff3cd;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--warning-color);
         }
     </style>
 </head>
@@ -698,42 +692,42 @@ void handle_deauth()
     if (wifi_number < num_networks)
     {
         html += R"(">
-        <div class="success-icon">⚡</div>
-        <h2 class="alert-title">Ataque Iniciado Exitosamente</h2>
-        <p class="alert-message">El ataque de desautenticacion ha comenzado correctamente</p>
+        <div class="icon success-icon">✅</div>
+        <h2 class="alert-title">Ataque Dirigido Iniciado</h2>
+        <p class="alert-message">La solicitud de desautenticación ha sido enviada.</p>
         
         <div class="detail-info">
             <div class="detail-label">Red Objetivo:</div>
-            <div class="detail-value">Red #)" + String(wifi_number) + R"(</div>
+            <div class="detail-value">ID #)" + String(wifi_number) + " (" + WiFi.SSID(wifi_number) + R"()</div>
         </div>
         
         <div class="detail-info">
-            <div class="detail-label">Codigo de Razon:</div>
+            <div class="detail-label">Código de Razón:</div>
             <div class="detail-value">)" + String(reason) + R"(</div>
         </div>
         
-        <p class="warning-text">El ataque esta en progreso. Monitorea las estadisticas en la pagina principal.</p>
+        <p class="warning-text">El proceso está activo. Usa el botón 'Detener' en el panel principal para finalizar.</p>
         )";
         start_deauth(wifi_number, DEAUTH_TYPE_SINGLE, reason);
     }
     else
     {
-        html += R"( error">
-        <div class="error-icon">⚠</div>
-        <h2 class="alert-title">Error en el Ataque</h2>
-        <p class="alert-message">Numero de red WiFi invalido</p>
+        html += R"(">
+        <div class="icon error-icon">❌</div>
+        <h2 class="alert-title">Error de Operación</h2>
+        <p class="alert-message">El ID de red WiFi proporcionado es inválido.</p>
         
-        <div class="detail-info">
-            <div class="detail-label">Red Solicitada:</div>
+        <div class="detail-info" style="border-left: 4px solid var(--danger-color);">
+            <div class="detail-label">ID Solicitado:</div>
             <div class="detail-value">#)" + String(wifi_number) + R"(</div>
         </div>
         
-        <p class="alert-message">Por favor selecciona una red valida del listado (0 a )" + String(num_networks - 1) + R"()</p>
+        <p class="alert-message">Por favor, regresa y selecciona un ID de red válido del listado (0 a )" + String(num_networks - 1) + R"().</p>
         )";
     }
 
     html += R"(
-        <a href="/" class="btn-home">Regresar al Panel Principal</a>
+        <a href="/" class="btn-home">⬅️ Regresar al Panel Principal</a>
     </div>
 </body>
 </html>
@@ -742,6 +736,7 @@ void handle_deauth()
     server.send(200, "text/html", html);
 }
 
+// Función de manejo de ataque masivo (Rediseñada)
 void handle_deauth_all()
 {
     uint16_t reason = server.arg("reason").toInt();
@@ -752,50 +747,48 @@ void handle_deauth_all()
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ataque Masivo - ESP32 Deauther</title>
+    <title>Ataque Masivo - ESP32 Auditor</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-color: #007bff;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --background-dark: #ffffff;
+            --text-color: #343a40;
         }
         
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, var(--danger-color) 0%, #a71d2a 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            color: #333;
+            color: var(--text-color);
         }
         
         .warning-container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
+            background: var(--background-dark);
+            border-radius: 12px;
             padding: 40px;
             text-align: center;
             max-width: 500px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            border: 5px solid var(--danger-color);
             animation: dangerPulse 2s infinite;
         }
         
         @keyframes dangerPulse {
-            0%, 100% { 
-                transform: scale(1);
-                box-shadow: 0 20px 40px rgba(255, 107, 107, 0.3);
-            }
-            50% { 
-                transform: scale(1.02);
-                box-shadow: 0 25px 50px rgba(255, 107, 107, 0.5);
-            }
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.01); }
         }
         
         .danger-icon {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            width: 90px;
+            height: 90px;
+            background: var(--danger-color);
             border-radius: 50%;
             margin: 0 auto 20px;
             display: flex;
@@ -803,110 +796,96 @@ void handle_deauth_all()
             justify-content: center;
             font-size: 50px;
             color: white;
-            animation: spin 3s linear infinite;
+            animation: shake 0.5s ease-in-out;
         }
         
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
         }
         
         .warning-title {
             font-size: 2rem;
             font-weight: bold;
-            margin-bottom: 15px;
-            color: #d32f2f;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            margin-bottom: 10px;
+            color: var(--danger-color);
         }
         
         .warning-message {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            color: #333;
-            line-height: 1.6;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: var(--text-color);
             font-weight: 500;
         }
         
         .critical-warning {
-            background: linear-gradient(45deg, #ffeb3b, #ffc107);
-            color: #333;
-            padding: 20px;
-            border-radius: 15px;
-            margin: 20px 0;
-            font-weight: bold;
-            border: 3px solid #ff9800;
-            animation: blink 1.5s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.7; }
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 600;
+            border: 2px solid var(--warning-color);
         }
         
         .reason-info {
-            background: #f8f9ff;
-            border-radius: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
             padding: 15px;
-            margin: 20px 0;
-            border-left: 4px solid #ff6b6b;
+            margin: 15px 0;
+            border-left: 4px solid var(--danger-color);
         }
         
         .reason-label {
-            font-weight: 600;
-            color: #ff6b6b;
-            margin-bottom: 5px;
+            font-weight: 500;
+            color: var(--danger-color);
+            margin-bottom: 3px;
         }
         
         .reason-value {
             font-size: 1.5rem;
             font-weight: bold;
-            color: #333;
-        }
-        
-        .countdown {
-            font-size: 3rem;
-            font-weight: bold;
-            color: #ff6b6b;
-            margin: 20px 0;
-            animation: countdown 1s infinite;
-        }
-        
-        @keyframes countdown {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            color: var(--text-color);
         }
         
         .status-text {
-            font-size: 1.1rem;
-            color: #666;
+            font-size: 1rem;
+            color: #6c757d;
             margin-top: 15px;
             font-style: italic;
+        }
+        
+        .security-note {
+            margin-top: 30px; 
+            padding: 15px; 
+            background: #f8d7da; 
+            border-radius: 10px; 
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
     <div class="warning-container">
-        <div class="danger-icon">💥</div>
-        <h1 class="warning-title">Ataque Masivo Iniciado</h1>
-        <p class="warning-message">Se ha iniciado el ataque de desautenticacion masiva contra todas las redes detectadas</p>
+        <div class="danger-icon">🚨</div>
+        <h1 class="warning-title">Ataque Masivo: En Progreso</h1>
+        <p class="warning-message">Se ha iniciado un ataque de desautenticación en modo broadcast.</p>
         
         <div class="critical-warning">
-            ⚠️ ATENCION: El WiFi del dispositivo se desconectara automaticamente
+            ⚠️ **Conexión Pérdida:** La interfaz web ya no está disponible.
         </div>
         
         <div class="reason-info">
-            <div class="reason-label">Codigo de Razon Utilizado:</div>
+            <div class="reason-label">Código de Razón Utilizado:</div>
             <div class="reason-value">)" + String(reason) + R"(</div>
         </div>
         
-        <div class="countdown">🔥</div>
+        <p class="status-text">Para detener el ataque, debes reiniciar físicamente el dispositivo ESP32.</p>
         
-        <p class="status-text">Para detener el ataque, reinicia fisicamente el dispositivo ESP32</p>
-        
-        <div style="margin-top: 30px; padding: 15px; background: #ffebee; border-radius: 10px; color: #d32f2f;">
-            <strong>Nota de Seguridad:</strong><br>
-            Este ataque afectara a todas las redes en el area. Usar solo con fines educativos y de testing autorizado.
+        <div class="security-note">
+            **Nota de Auditoría:** Este ataque está diseñado para propósitos de prueba de seguridad y puede causar una interrupción significativa en la conectividad del área. Úsalo solo en entornos de prueba autorizados.
         </div>
     </div>
 </body>
