@@ -8,5 +8,6 @@ void stop_deauth();
 
 extern int eliminated_stations;
 extern int deauth_type;
+extern int deauth_type_whitelist;
 
 #endif
