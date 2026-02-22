@@ -1,6 +1,10 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <Arduino.h>
+#include <esp_wifi.h>
+#include "definitions.h"
+
 typedef struct {
   uint8_t frame_control[2] = { 0xC0, 0x00 };
   uint8_t duration[2];
@@ -10,6 +14,16 @@ typedef struct {
   uint8_t fragment_sequence[2] = { 0xF0, 0xFF };
   uint16_t reason;
 } deauth_frame_t;
+
+typedef struct {
+  uint8_t bssid[6];
+  bool active;
+} whitelist_entry_t;
+
+typedef struct {
+  whitelist_entry_t entries[MAX_WHITELIST_NETWORKS];
+  int count;
+} whitelist_t;
 
 typedef struct {
   uint16_t frame_ctrl;
