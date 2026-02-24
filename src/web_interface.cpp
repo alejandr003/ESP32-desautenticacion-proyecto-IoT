@@ -6,12 +6,10 @@
 #include "types.h"
 
 WebServer server(80);
-int num_networks;
+int num_networks = 0;
 
 whitelist_t whitelist = { .count = 0 };
-
-#define DEAUTH_TYPE_SINGLE 0
-#define DEAUTH_TYPE_ALL 1
+extern int deauth_type_whitelist;
 
 String getEncryptionType(wifi_auth_mode_t encryptionType);
 void redirect_root();
@@ -28,11 +26,20 @@ void web_interface_handle_client();
 
 bool is_in_whitelist(uint8_t *bssid) {
     for (int i = 0; i < whitelist.count; i++) {
-        if (whitelist.entries[i].active && memcmp(whitelist.entries[i].bssid, bssid, 6) == 0) {
+        if (memcmp(whitelist.entries[i].bssid, bssid, 6) == 0) {
             return true;
         }
     }
     return false;
+}
+
+String htmlEscape(String s) {
+    s.replace("&", "&amp;");
+    s.replace("<", "&lt;");
+    s.replace(">", "&gt;");
+    s.replace("\"", "&quot;");
+    s.replace("'", "&#39;");
+    return s;
 }
 
 void add_to_whitelist(uint8_t *bssid) {
@@ -46,8 +53,7 @@ void add_to_whitelist(uint8_t *bssid) {
 
 void remove_from_whitelist(uint8_t *bssid) {
     for (int i = 0; i < whitelist.count; i++) {
-        if (whitelist.entries[i].active && memcmp(whitelist.entries[i].bssid, bssid, 6) == 0) {
-            whitelist.entries[i].active = false;
+        if (memcmp(whitelist.entries[i].bssid, bssid, 6) == 0) {
             for (int j = i; j < whitelist.count - 1; j++) {
                 whitelist.entries[j] = whitelist.entries[j + 1];
             }
@@ -59,9 +65,6 @@ void remove_from_whitelist(uint8_t *bssid) {
 
 void clear_whitelist() {
     whitelist.count = 0;
-    for (int i = 0; i < MAX_WHITELIST_NETWORKS; i++) {
-        whitelist.entries[i].active = false;
-    }
 }
 
 void redirect_root() {
@@ -208,7 +211,7 @@ void handle_root() {
                             <th>BSSID</th>
                             <th>Ch</th>
                             <th>Signal</th>
-                            <th>Accion</th>
+                            <th>Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -226,7 +229,7 @@ void handle_root() {
         }
         
         html += "<td><strong>" + String(i) + "</strong></td>";
-        html += "<td><strong>" + WiFi.SSID(i) + "</strong></td>";
+        html += "<td><strong>" + htmlEscape(WiFi.SSID(i)) + "</strong></td>";
         html += "<td style='font-family:monospace;font-size:0.8rem'>" + bssidStr + "</td>";
         html += "<td>" + String(WiFi.channel(i)) + "</td>";
         html += "<td>" + String(rssi) + " dBm</td>";
@@ -234,9 +237,15 @@ void handle_root() {
         
         if (isProtected) {
             html += "<span class='badge badge-success'>PROTEGIDA</span> ";
-            html += "<a href='/whitelist/remove?bssid=" + bssidStr + "' class='btn btn-danger'>Quitar</a>";
+            html += "<form method='POST' action='/whitelist/remove' style='display:inline; margin:0; padding:0;'>";
+            html += "<input type='hidden' name='bssid' value='" + bssidStr + "'>";
+            html += "<button type='submit' class='btn btn-danger'>Quitar</button>";
+            html += "</form>";
         } else {
-            html += "<a href='/whitelist/add?net_id=" + String(i) + "' class='btn btn-primary'>Proteger</a>";
+            html += "<form method='POST' action='/whitelist/add' style='display:inline; margin:0; padding:0;'>";
+            html += "<input type='hidden' name='net_id' value='" + String(i) + "'>";
+            html += "<button type='submit' class='btn btn-primary'>Proteger</button>";
+            html += "</form>";
         }
         
         html += "</td></tr>";
@@ -255,7 +264,7 @@ void handle_root() {
                 <h3 class="section-title">Ataque Dirigido</h3>
                 <form method="post" action="/deauth">
                     <input type="number" name="net_num" class="form-input" placeholder="ID de Red (0, 1, 2...)" required min="0">
-                    <input type="number" name="reason" class="form-input" value="1" placeholder="Codigo Razon" required min="1">
+                    <input type="number" name="reason" class="form-input" value="1" placeholder="Código Razón" required min="1">
                     <button type="submit" class="btn btn-primary btn-block" style="background: var(--warning)">Iniciar Ataque Dirigido</button>
                 </form>
             </div>
@@ -269,30 +278,30 @@ void handle_root() {
             </div>
         </div>
         <div class="section">
-            <h2 class="section-title">Codigos de Razon 802.11</h2>
+            <h2 class="section-title">Códigos de Razón 802.11</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>Codigo</th><th>Nombre</th><th>Descripcion</th></tr></thead>
+                    <thead><tr><th>Código</th><th>Nombre</th><th>Descripción</th></tr></thead>
                     <tbody>
-                        <tr><td><strong>1</strong></td><td>Razon No Especificada</td><td>Desconexion por razon desconocida</td></tr>
-                        <tr><td><strong>2</strong></td><td>Autenticacion Invalida</td><td>La autenticacion previa ya no es valida</td></tr>
-                        <tr><td><strong>3</strong></td><td>Estacion Saliendo</td><td>La estacion se desconecta porque sale del BSS</td></tr>
-                        <tr><td><strong>4</strong></td><td>Inactividad</td><td>Desconexion por periodo prolongado de inactividad</td></tr>
-                        <tr><td><strong>5</strong></td><td>Capacidad Excedida</td><td>El AP no tiene capacidad para mas estaciones</td></tr>
-                        <tr><td><strong>6</strong></td><td>Clase Invalida</td><td>La estacion no soporta la clase de servicio</td></tr>
-                        <tr><td><strong>7</strong></td><td>Sin ACK</td><td>No se recibio ACK en tramas no difundidas</td></tr>
-                        <tr><td><strong>8</strong></td><td>Disasociando</td><td>Estacion disociada porque sale del BSS</td></tr>
-                        <tr><td><strong>9</strong></td><td>Reasociacion Fallida</td><td>La reasociacion no pudo completarse</td></tr>
-                        <tr><td><strong>10</strong></td><td>Preautenticacion Invalida</td><td>La preautenticacion fue rechazada</td></tr>
-                        <tr><td><strong>14</strong></td><td>Error MIC (WPA)</td><td>Fallo en codigo de integridad WPA/WPA2</td></tr>
+                        <tr><td><strong>1</strong></td><td>Razón No Especificada</td><td>Desconexión por razón desconocida</td></tr>
+                        <tr><td><strong>2</strong></td><td>Autenticación Inválida</td><td>La autenticación previa ya no es válida</td></tr>
+                        <tr><td><strong>3</strong></td><td>Estación Saliendo</td><td>La estación se desconecta porque sale del BSS</td></tr>
+                        <tr><td><strong>4</strong></td><td>Inactividad</td><td>Desconexión por periodo prolongado de inactividad</td></tr>
+                        <tr><td><strong>5</strong></td><td>Capacidad Excedida</td><td>El AP no tiene capacidad para más estaciones</td></tr>
+                        <tr><td><strong>6</strong></td><td>Clase Inválida</td><td>La estación no soporta la clase de servicio</td></tr>
+                        <tr><td><strong>7</strong></td><td>Sin ACK</td><td>No se recibió ACK en tramas no difundidas</td></tr>
+                        <tr><td><strong>8</strong></td><td>Disasociando</td><td>Estación disociada porque sale del BSS</td></tr>
+                        <tr><td><strong>9</strong></td><td>Reasociación Fallida</td><td>La reasociación no pudo completarse</td></tr>
+                        <tr><td><strong>10</strong></td><td>Preautenticación Inválida</td><td>La preautenticación fue rechazada</td></tr>
+                        <tr><td><strong>14</strong></td><td>Error MIC (WPA)</td><td>Fallo en código de integridad WPA/WPA2</td></tr>
                         <tr><td><strong>15</strong></td><td>Timeout 4-Way Handshake</td><td>Tiempo agotado en handshake WPA/WPA2</td></tr>
-                        <tr><td><strong>16</strong></td><td>Grupo Key Timeout</td><td>Tiempo agotado en actualizacion de clave de grupo</td></tr>
-                        <tr><td><strong>17</strong></td><td>Frame Invalido</td><td>Se recibio un frame con contenido invalido</td></tr>
-                        <tr><td><strong>18</strong></td><td>Parametros Invalidos</td><td>Parametros de conexion invalidos</td></tr>
-                        <tr><td><strong>19</strong></td><td>IEEE 802.1X Fallo</td><td>Fallo en autenticacion IEEE 802.1X</td></tr>
-                        <tr><td><strong>22</strong></td><td>Mejor AP Disponible</td><td>La estacion encontro un AP mejor</td></tr>
-                        <tr><td><strong>23</strong></td><td>802.1X Fallo</td><td>Fallo en autenticacion IEEE 802.1X</td></tr>
-                        <tr><td><strong>24</strong></td><td>Fuera del Area</td><td>La estacion esta fuera del area de cobertura</td></tr>
+                        <tr><td><strong>16</strong></td><td>Grupo Key Timeout</td><td>Tiempo agotado en actualización de clave de grupo</td></tr>
+                        <tr><td><strong>17</strong></td><td>Frame Inválido</td><td>Se recibió un frame con contenido inválido</td></tr>
+                        <tr><td><strong>18</strong></td><td>Parámetros Inválidos</td><td>Parámetros de conexión inválidos</td></tr>
+                        <tr><td><strong>19</strong></td><td>IEEE 802.1X Fallo</td><td>Fallo en autenticación IEEE 802.1X</td></tr>
+                        <tr><td><strong>22</strong></td><td>Mejor AP Disponible</td><td>La estación encontró un AP mejor</td></tr>
+                        <tr><td><strong>23</strong></td><td>802.1X Fallo</td><td>Fallo en autenticación IEEE 802.1X</td></tr>
+                        <tr><td><strong>24</strong></td><td>Fuera del Área</td><td>La estación está fuera del área de cobertura</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -312,7 +321,10 @@ void handle_root() {
 
 void handle_deauth() {
     int wifi_number = server.arg("net_num").toInt();
-    uint16_t reason = server.arg("reason").toInt();
+    int reason_param = server.arg("reason").toInt();
+    uint16_t reason = (reason_param > 0 && reason_param <= 0xFFFF)
+                          ? static_cast<uint16_t>(reason_param)
+                          : static_cast<uint16_t>(1);
 
     String html = R"rawliteral(
 <!DOCTYPE html>
@@ -327,8 +339,8 @@ void handle_deauth() {
     <div class="card">
 )rawliteral";
 
-    if (wifi_number < num_networks) {
-        html += "<h2>Ataque Iniciado</h2><p>Objetivo: <strong>" + WiFi.SSID(wifi_number) + "</strong></p>";
+    if (wifi_number >= 0 && wifi_number < num_networks) {
+        html += "<h2>Ataque Iniciado</h2><p>Objetivo: <strong>" + htmlEscape(WiFi.SSID(wifi_number)) + "</strong></p>";
         html += "<p style='color:#94a3b8;font-size:0.85rem'>BSSID: " + WiFi.BSSIDstr(wifi_number) + "</p>";
         start_deauth(wifi_number, DEAUTH_TYPE_SINGLE, reason);
     } else {
@@ -340,7 +352,10 @@ void handle_deauth() {
 }
 
 void handle_deauth_whitelist() {
-    uint16_t reason = server.arg("reason").toInt();
+    int reason_param = server.arg("reason").toInt();
+    uint16_t reason = (reason_param > 0 && reason_param <= 0xFFFF)
+                          ? static_cast<uint16_t>(reason_param)
+                          : static_cast<uint16_t>(1);
 
     String html = R"rawliteral(
 <!DOCTYPE html>
@@ -354,14 +369,13 @@ void handle_deauth_whitelist() {
 <body>
     <div class="card">
         <h2>Ataque Masivo Iniciado</h2>
-        <p style="color:#94a3b8">Las redes protegidas NO seran afectadas.</p>
+        <p style="color:#94a3b8">Las redes protegidas NO serán afectadas.</p>
         <a href='/' class='btn'>Ver Panel</a>
     </div>
 </body></html>
 )rawliteral";
 
     server.send(200, "text/html", html);
-    extern int deauth_type_whitelist;
     deauth_type_whitelist = 1;
     start_deauth(0, DEAUTH_TYPE_ALL, reason);
 }
@@ -379,6 +393,21 @@ void handle_stop() {
 void handle_whitelist_add() {
     int net_id = server.arg("net_id").toInt();
     if (net_id >= 0 && net_id < num_networks) {
+        if (whitelist.count >= MAX_WHITELIST_NETWORKS) {
+            server.send(200, "text/html",
+                "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
+                "<style>body{background:#0f172a;color:white;font-family:sans-serif;"
+                "display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}"
+                ".card{background:#1e293b;padding:30px;border-radius:12px;text-align:center;"
+                "border:1px solid #334155;}"
+                ".btn{display:inline-block;margin-top:20px;padding:10px 20px;background:#38bdf8;"
+                "color:#0f172a;text-decoration:none;border-radius:6px;font-weight:bold;}</style>"
+                "</head><body><div class='card'>"
+                "<h2>Lista Blanca Llena</h2>"
+                "<p>Se alcanzó el límite máximo de redes protegidas.</p>"
+                "<a href='/' class='btn'>Regresar</a></div></body></html>");
+            return;
+        }
         add_to_whitelist(WiFi.BSSID(net_id));
     }
     redirect_root();
@@ -387,6 +416,17 @@ void handle_whitelist_add() {
 void handle_whitelist_remove() {
     String bssidStr = server.arg("bssid");
     bssidStr.replace(":", "");
+    if (bssidStr.length() != 12) {
+        redirect_root();
+        return;
+    }
+    for (unsigned int i = 0; i < 12; i++) {
+        char c = bssidStr[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {
+            redirect_root();
+            return;
+        }
+    }
     uint8_t bssid[6];
     for (int i = 0; i < 6; i++) {
         String byteStr = bssidStr.substring(i * 2, i * 2 + 2);
