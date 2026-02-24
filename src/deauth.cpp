@@ -3,6 +3,7 @@
 #include "types.h"
 #include "deauth.h"
 #include "definitions.h"
+#include "web_interface.h"
 
 deauth_frame_t deauth_frame;
 int deauth_type = DEAUTH_TYPE_SINGLE;
@@ -10,15 +11,6 @@ int eliminated_stations;
 int deauth_type_whitelist = 0;
 
 extern whitelist_t whitelist;
-
-bool is_in_whitelist(uint8_t *bssid) {
-    for (int i = 0; i < whitelist.count; i++) {
-        if (whitelist.entries[i].active && memcmp(whitelist.entries[i].bssid, bssid, 6) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
 
 extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3) {
   return 0;
